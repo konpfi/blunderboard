@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: blunderboard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      
+  api:
+    build: ./api
+    environment:
+      DB_DSN: postgres://postgres:postgres@db:5432/blunderboard
+      PGN_INBOX: /data/inbox
+    volumes:
+      - ./data/inbox:/data/inbox
+    ports: ["8000:8000"]
+    depends_on: [db]
+
+  analyzer:
+    build: ./analyzer
+    environment:
+      DB_DSN: postgres://postgres:postgres@db:5432/blunderboard
+      PGN_DIR: /data/inbox
+    volumes:
+      - ./data/inbox:/data/inbox
+    depends_on: [db]
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    depends_on: [api]
+
+  grafana:
+    image: grafana/grafana
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  pgdata:
