@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Git
+.git
+.gitignore
+
+# Logs & Temp
+*.log
+*.tmp
+.DS_Store
+
+# Local configs
+.env
