@@ -20,3 +20,18 @@ CREATE TABLE IF NOT EXISTS moves (
   cp_loss INT,                           -- max(0, cp_before - cp_after)
   tag VARCHAR(16)                        -- ok | inaccuracy | mistake | blunder
 );
+
+-- Aggregierte Sicht je Partie 
+CREATE MATERIALIZED VIEW IF NOT EXISTS analysis_summary AS
+SELECT
+  g.id AS game_id,
+  AVG(m.cp_loss) AS avg_cploss,
+  SUM(CASE WHEN m.tag='blunder' THEN 1 ELSE 0 END) AS blunders,
+  SUM(CASE WHEN m.tag='mistake' THEN 1 ELSE 0 END) AS mistakes,
+  SUM(CASE WHEN m.tag='inaccuracy' THEN 1 ELSE 0 END) AS inaccuracies
+FROM games g JOIN moves m ON m.game_id = g.id
+GROUP BY g.id;
+
+-- Indexe (Performance)
+CREATE INDEX IF NOT EXISTS idx_moves_game ON moves(game_id);
+CREATE INDEX IF NOT EXISTS idx_moves_tag ON moves(tag);
