@@ -18,10 +18,13 @@ deploy:
   image: alpine:3.19
   before_script:
     - apk add --no-cache openssh-client bash
-  script:
     - mkdir -p ~/.ssh
     - printf "%s" "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
-
-    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "hostname && whoami"
-    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "echo '$CI_REGISTRY_PASSWORD' | docker login -u '$CI_REGISTRY_USER' --password-stdin '$CI_REGISTRY'"
+  script:
+    # 1) Zielordner anlegen
+    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" 'mkdir -p ~/blunderboard'
+    # 2) Compose-Datei hochladen
+    - scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no docker-compose.yml "$SSH_USER@$SSH_HOST:~/blunderboard/docker-compose.yml"
+    # 3) Login + Pull + Up (ENV für Compose setzen)
+    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "bash -lc 'cd ~/blunderboard; export CI_REGISTRY_IMAGE=\"$CI_REGISTRY_IMAGE\"; export POSTGRES_PASSWORD=\"$POSTGRES_PASSWORD\"; echo \"$CI_REGISTRY_PASSWORD\" | docker login -u \"$CI_REGISTRY_USER\" --password-stdin \"$CI_REGISTRY\"; docker compose pull || true; docker compose up -d'"
