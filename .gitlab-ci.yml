@@ -27,30 +27,27 @@ deploy:
   stage: deploy
   image: alpine:3.19
   before_script:
-    - apk add --no-cache openssh-client bash coreutils rsync
+    - apk add --no-cache openssh-client rsync
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
-    - ssh-keygen -lf ~/.ssh/id_ed25519 || (echo "Invalid SSH key" && exit 1)
   script:
-    # 1) Verbindung & Zielstruktur
-    - ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" 'hostname && whoami'
-    - ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" 'mkdir -p ~/blunderboard ~/blunderboard/monitoring ~/blunderboard/db ~/blunderboard/data/inbox'
+    # Projektordner vorbereiten
+    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" 'mkdir -p ~/blunderboard'
 
-    # 2) Compose + notwendige Dateien rüber
-    - scp   -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no docker-compose.yml "$SSH_USER@$SSH_HOST:~/blunderboard/docker-compose.yml"
+    # Compose & Configs hochladen
+    - scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no docker-compose.yml "$SSH_USER@$SSH_HOST:~/blunderboard/"
     - rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" monitoring/ "$SSH_USER@$SSH_HOST:~/blunderboard/monitoring/"
-    - rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" db/         "$SSH_USER@$SSH_HOST:~/blunderboard/db/"
+    - rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" db/ "$SSH_USER@$SSH_HOST:~/blunderboard/db/"
 
-    # 3) Login in Registry + Compose ausführen
-    - |
-      ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "bash -lc '
-        set -e
-        cd ~/blunderboard
-        export API_IMAGE=\"$CI_REGISTRY_IMAGE/api\"
-        export ANALYZER_IMAGE=\"$CI_REGISTRY_IMAGE/analyzer\"
-        export POSTGRES_PASSWORD=\"$POSTGRES_PASSWORD\"
-        echo \"$CI_REGISTRY_PASSWORD\" | docker login -u \"$CI_REGISTRY_USER\" --password-stdin \"$CI_REGISTRY\"
-        docker compose pull
-        docker compose up -d
-      '"
+    # Docker Compose starten
+    - >
+      ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "
+      cd ~/blunderboard &&
+      export API_IMAGE='$CI_REGISTRY_IMAGE/api' &&
+      export ANALYZER_IMAGE='$CI_REGISTRY_IMAGE/analyzer' &&
+      export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
+      echo '$CI_REGISTRY_PASSWORD' | docker login -u '$CI_REGISTRY_USER' --password-stdin '$CI_REGISTRY' &&
+      docker compose pull &&
+      docker compose up -d
+      "
