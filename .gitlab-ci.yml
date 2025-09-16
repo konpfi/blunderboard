@@ -1,11 +1,28 @@
 stages:
-  - test
+  - build
+  - deploy
 
-ssh-test:
-  stage: test
+# Image bauen und in GitLab Registry pushen
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:latest
 
+# Deployment auf den Server
+deploy:
+  stage: deploy
   script:
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
-    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no deploy@188.245.195.97 "hostname && whoami"
+    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "
+        echo '$CI_REGISTRY_PASSWORD' | docker login -u '$CI_REGISTRY_USER' --password-stdin $CI_REGISTRY &&
+        docker pull $CI_REGISTRY_IMAGE:latest &&
+        cd ~/blunderboard &&
+        docker compose up -d
+      "
