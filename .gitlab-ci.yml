@@ -2,7 +2,7 @@ stages:
   - build
   - deploy
 
-# 1) Image bauen und in GitLab Registry pushen
+# 1) Images bauen und in GitLab Registry pushen
 build:
   stage: build
   image: docker:27
@@ -11,9 +11,16 @@ build:
   variables:
     DOCKER_TLS_CERTDIR: ""   # nötig für dind ohne TLS
   script:
+    # Registry-Login
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - docker build -t "$CI_REGISTRY_IMAGE:latest" .
-    - docker push "$CI_REGISTRY_IMAGE:latest"
+
+    # API-Image bauen & pushen
+    - docker build -t "$CI_REGISTRY_IMAGE/api:latest" ./api
+    - docker push "$CI_REGISTRY_IMAGE/api:latest"
+
+    # Analyzer-Image bauen & pushen
+    - docker build -t "$CI_REGISTRY_IMAGE/analyzer:latest" ./analyzer
+    - docker push "$CI_REGISTRY_IMAGE/analyzer:latest"
 
 # 2) Deployment auf den Server
 deploy:
@@ -37,13 +44,14 @@ deploy:
     # 3) Compose-Datei hochladen
     - scp -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no docker-compose.yml "$SSH_USER@$SSH_HOST:~/blunderboard/docker-compose.yml"
 
-    # 4) Login in Registryso + Compose ausführen
-    - >
+    # 4) Login in Registry + Compose ausführen
+    - |
       ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "bash -lc '
-      cd ~/blunderboard;
-      export CI_REGISTRY_IMAGE=\"$CI_REGISTRY_IMAGE\";
-      export POSTGRES_PASSWORD=\"$POSTGRES_PASSWORD\";
-      echo \"$CI_REGISTRY_PASSWORD\" | docker login -u \"$CI_REGISTRY_USER\" --password-stdin \"$CI_REGISTRY\";
-      docker compose pull || true;
-      docker compose up -d;
+        cd ~/blunderboard;
+        export API_IMAGE=\"$CI_REGISTRY_IMAGE/api\";
+        export ANALYZER_IMAGE=\"$CI_REGISTRY_IMAGE/analyzer\";
+        export POSTGRES_PASSWORD=\"$POSTGRES_PASSWORD\";
+        echo \"$CI_REGISTRY_PASSWORD\" | docker login -u \"$CI_REGISTRY_USER\" --password-stdin \"$CI_REGISTRY\";
+        docker compose pull;
+        docker compose up -d;
       '"
