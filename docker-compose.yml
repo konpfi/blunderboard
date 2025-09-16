@@ -6,7 +6,7 @@ services:
       POSTGRES_DB: blunderboard
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      - ./db:/docker-entrypoint-initdb.d:ro
       
   api:
     image: ${API_IMAGE}:latest
