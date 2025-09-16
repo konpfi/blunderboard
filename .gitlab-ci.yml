@@ -34,14 +34,14 @@ deploy:
 
     # Projektdateien hochsyncen (Compose + Configs). Passe die Includes an DEIN Repo an:
     - rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
-        docker-compose.yml monitoring db data \
-        "$SSH_USER@$SSH_HOST:~/blunderboard/"
+      docker-compose.yml monitoring db data \
+      "$SSH_USER@$SSH_HOST:~/blunderboard/"
 
     # .env mit Secrets auf dem Server schreiben (für Compose)
     - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
-        "bash -lc 'cd ~/blunderboard && printf \"POSTGRES_PASSWORD=%s\n\" \"$POSTGRES_PASSWORD\" > .env'"
+      "bash -lc 'cd ~/blunderboard && printf \"POSTGRES_PASSWORD=%s\n\" \"$POSTGRES_PASSWORD\" > .env'"
 
     # Login in Registry + Pull/Up
     - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
-        "bash -lc 'echo \"$CI_REGISTRY_PASSWORD\" | docker login -u \"$CI_REGISTRY_USER\" --password-stdin \"$CI_REGISTRY\"; cd ~/blunderboard; docker compose pull || true; docker compose up -d --build'"
+      "bash -lc 'echo \"$CI_REGISTRY_PASSWORD\" | docker login -u \"$CI_REGISTRY_USER\" --password-stdin \"$CI_REGISTRY\"; cd ~/blunderboard; docker compose pull || true; docker compose up -d --build'"
 
