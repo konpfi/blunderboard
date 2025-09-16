@@ -3,9 +3,7 @@ stages:
 
 ssh-test:
   stage: test
-  image: alpine:latest   # minimales Linux-Image
-  before_script:
-    - apk add --no-cache openssh-client
+
   script:
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
