@@ -1,0 +1,10 @@
+stages:
+  - test
+
+ssh-test:
+  stage: test
+  script:
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no deploy@188.245.195.97 "hostname && whoami"
