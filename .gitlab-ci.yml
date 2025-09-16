@@ -21,6 +21,15 @@ deploy:
     - mkdir -p ~/.ssh
     - printf "%s" "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
+    
+      # Debug: zeigen ob Key da ist
+    - echo "=== SSH key preview ==="
+    - head -n 5 ~/.ssh/id_ed25519
+    - echo "=== end preview ==="
+
+    # Test: kann sich der Runner einloggen?
+    - ssh -vvv -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" 'hostname && whoami'
+
   script:
     # 1) Zielordner anlegen
     - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" 'mkdir -p ~/blunderboard'
