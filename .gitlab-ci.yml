@@ -13,9 +13,6 @@ build:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - docker push $CI_REGISTRY_IMAGE:latest
 
-stages:
-  - deploy
-
 deploy:
   stage: deploy
   image: alpine:3.19
