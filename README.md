@@ -1,93 +1,219 @@
-# blunderboard
+# Blunderboard — Chess Analytics Platform (DevOps/Data Showcase)
 
+A practical, end‑to‑end project that ingests real chess games (PGN), analyzes them, stores results in Postgres, exposes metrics via a FastAPI service, and ships with a production‑grade CI/CD pipeline, monitoring, and dashboards.
 
+---
 
-## Getting started
+## What this shows in \~1 minute
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+**Containerization, orchestration, CI/CD, secrets management, remote deployment, observability.**
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+* Dockerized multi‑service stack (Docker & Compose)
+* GitLab CI/CD: build → test → deploy
+* Secrets via CI variables
+* Remote deployment via SSH
+* Prometheus & Grafana monitoring out of the box
 
-## Add your files
+---
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## TL;DR (for busy reviewers)
+
+**Stack:** Python (FastAPI, `python-chess`), Postgres, Docker/Compose, GitLab CI/CD, Prometheus, Grafana
+
+**Pipeline:** On push → build & push images → smoke tests → deploy to Ubuntu server via SSH → `docker compose pull && up -d`
+
+**Metrics endpoint:** `GET /metrics` (Prometheus format), e.g. `games_total`, `blunders_total`, `cp_loss_avg`
+
+**Why it matters:** Demonstrates production thinking — immutable images, reproducible deploys, secrets via CI variables, monitoring by default
+
+---
+
+## Architecture (overview)
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/konpfi/blunderboard.git
-git branch -M main
-git push -uf origin main
+                 +---------------------------+
+PGN files  --->  | Analyzer (Python)        |----\
+(./data/inbox)   | parses PGN, computes KPIs|     \
+                 +---------------------------+      \
+                                                     v
+                 +---------------------------+   +--------+
+                 | API (FastAPI)             |-->| /metrics
+                 | exposes metrics & health  |   +--------+
+                 +---------------------------+        ^
+                         |  DB_DSN                      |
+                         v                              |
+                 +---------------------------+          |
+                 | Postgres (persistent vol) |<---------
+                 +---------------------------+
+
+            Prometheus scrapes API:/metrics  |  Grafana dashboards (http://localhost:3000)
 ```
 
-## Integrate with your tools
+### Key features
 
-- [ ] [Set up project integrations](https://gitlab.com/konpfi/blunderboard/-/settings/integrations)
+* **Ingestion & analysis:** PGN → Analyzer → Postgres
+* **Service boundary:** `api` exposes Prometheus metrics; `analyzer` runs as a separate worker
+* **Observability:** Prometheus + Grafana baked in
+* **Reproducibility:** Everything via Docker Compose (dev & prod variants)
+* **CI/CD:** GitLab pipeline builds, tests, and deploys to a remote Ubuntu server
 
-## Collaborate with your team
+### Tech highlights (what I practiced)
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+* **Docker & Compose:** multi‑service stack, volumes, health/`depends_on`
+* **GitLab CI/CD:**
 
-## Test and Deploy
+  * build images for `api` & `analyzer` and push to GitLab Container Registry
+  * SSH deploy: `rsync` compose/configs → registry login → `compose pull` → `compose up -d`
+* **Secrets & config:** environment via GitLab CI variables; DB password not stored in repo
+* **Monitoring:** Prometheus scrape of `/metrics`; Grafana dashboards
 
-Use the built-in continuous integration in GitLab.
+---
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## Quickstart (local, dev)
 
-***
+**Prereqs:** Docker Desktop / Docker Engine + Compose plugin.
 
-# Editing this README
+```bash
+# in repo root
+docker compose up -d
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+# API metrics
+curl http://localhost:8000/metrics
 
-## Suggestions for a good README
+# Prometheus UI
+open http://localhost:9090
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# Grafana UI (login on first run)
+open http://localhost:3000
+```
 
-## Name
-Choose a self-explaining name for your project.
+**PGN ingestion:** drop `.pgn` files into `./data/inbox/`. The analyzer picks them up and writes results to Postgres.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Production deployment (how I ship)
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+* **Images:** Built in CI and pushed to GitLab Container Registry
+* **Host:** Ubuntu server with Docker + Compose
+* **Deploy job:**
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+  1. Copy `docker-compose.prod.yml` and config (`monitoring/`, `db/`) via `rsync/scp`
+  2. Write `.env` on server (injects `API_IMAGE`, `ANALYZER_IMAGE`, `POSTGRES_PASSWORD`)
+  3. `docker login` to registry (stdin password)
+  4. `docker compose -f docker-compose.prod.yml pull && up -d`
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### Compose (prod) excerpt
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```yaml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: blunderboard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+  api:
+    image: ${API_IMAGE}:latest
+    environment:
+      DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/blunderboard
+      PGN_INBOX: /data/inbox
+    volumes: [ "./data/inbox:/data/inbox" ]
+    ports: [ "8000:8000" ]
+    depends_on: [ db ]
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+  analyzer:
+    image: ${ANALYZER_IMAGE}:latest
+    environment:
+      DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/blunderboard
+      PGN_DIR: /data/inbox
+    volumes: [ "./data/inbox:/data/inbox" ]
+    depends_on: [ db ]
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+  prometheus:
+    image: prom/prometheus
+    volumes: [ "./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" ]
+    ports: [ "9090:9090" ]
+    depends_on: [ api ]
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+  grafana:
+    image: grafana/grafana
+    ports: [ "3000:3000" ]
+    depends_on: [ prometheus ]
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+volumes:
+  pgdata:
+```
 
-## License
-For open source projects, say how it is licensed.
+---
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+## CI/CD pipeline (GitLab)
+
+**Stages:** `build` → `test` → `deploy`
+
+* **build**
+
+  * `docker build -t $CI_REGISTRY_IMAGE/api:<sha> api/`
+  * `docker build -t $CI_REGISTRY_IMAGE/analyzer:<sha> analyzer/`
+  * push both; optionally tag `:main` for stable
+
+* **deploy**
+
+  * SSH to server (key via masked CI variable)
+  * `rsync` compose/configs
+  * write `.env`
+  * `docker compose pull && up -d`
+
+**Secrets (masked CI variables):** `SSH_PRIVATE_KEY`, `POSTGRES_PASSWORD`, and registry creds via `CI_REGISTRY_*`.
+
+---
+
+## Repository structure
+
+```
+blunderboard/
+├─ api/                    # FastAPI service exposing /metrics
+├─ analyzer/               # PGN ingestion & analysis worker
+├─ monitoring/
+│  └─ prometheus.yml       # Prom scrape config
+├─ db/                     # optional init/migration scripts
+├─ data/
+│  └─ inbox/               # drop PGNs here (bind mount)
+├─ docker-compose.yml      # dev stack
+├─ docker-compose.prod.yml # prod stack (images from registry)
+└─ .gitlab-ci.yml          # CI/CD pipeline (GitLab)
+```
+
+---
+
+## Security & data
+
+* No secrets in repo — DB password & SSH key via masked CI variables
+* SSH with keys — no password logins in deploy
+* Volumes — DB data persists via `pgdata` (prod data is not synced from dev)
+* Registry login — `--password-stdin` to avoid secrets in logs
+
+---
+
+## Roadmap (short)
+
+* Extend `pytest` coverage (PGN parsing, API, analyzer workflows)
+* Implement user-facing analytics in Looker Studio (Google Data Studio) or Power BI
+* Basic Grafana dashboard provisioning
+* Optional: nightly analysis job & lightweight caching layer
+* Optional: promote `:main` vs `:<sha>` rollout strategy
+
+---
+
+## How to read this as a reviewer
+
+* Look at `.gitlab-ci.yml` for the CI/CD pipeline design
+* Skim `docker-compose.prod.yml` for production orchestration
+* Hit `api/` to see how metrics are exposed; `analyzer/` for ingestion logic
+* Open `monitoring/prometheus.yml` to see the scrape config
+
+---
+
+*This project is built as a hands‑on demonstration of DevOps/Data engineering fundamentals with real services, real deploys, and real monitoring.*
